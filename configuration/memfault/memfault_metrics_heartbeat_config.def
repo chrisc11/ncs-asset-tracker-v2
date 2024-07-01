@@ -5,3 +5,7 @@
 MEMFAULT_METRICS_KEY_DEFINE(GnssTimeToFix, kMemfaultMetricType_Unsigned)
 MEMFAULT_METRICS_KEY_DEFINE(GnssSatellitesTracked, kMemfaultMetricType_Unsigned)
 MEMFAULT_METRICS_KEY_DEFINE(LocationTimeoutSearchTime, kMemfaultMetricType_Unsigned)
+
+
+MEMFAULT_METRICS_KEY_DEFINE(battery_voltage, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(internal_temp, kMemfaultMetricType_Unsigned)

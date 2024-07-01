@@ -5,6 +5,9 @@
  */
 
 #include <zephyr/kernel.h>
+#include <zephyr/sys/reboot.h>
+#include <modem/modem_info.h>
+
 #if defined(CONFIG_MEMFAULT)
 #include <memfault/metrics/metrics.h>
 #include <memfault/ports/zephyr/http.h>
@@ -56,6 +59,8 @@ static enum memfault_data_type {
 	COREDUMP
 } send_type;
 
+static bool s_connect_and_location_complete = false;
+
 static K_SEM_DEFINE(mflt_internal_send_sem, 0, 1);
 
 static void memfault_internal_send(void)
@@ -68,7 +73,8 @@ entry:
 			LOG_DBG("Sending a coredump to Memfault!");
 		} else {
 			LOG_DBG("No coredump available.");
-			goto entry;
+			/* for demo purposes, try and send data anyway */
+			// goto entry;
 		}
 	}
 
@@ -77,6 +83,19 @@ entry:
 	 */
 #if !defined(CONFIG_DEBUG_MODULE_MEMFAULT_USE_EXTERNAL_TRANSPORT)
 		memfault_zephyr_port_post_data();
+
+		/* Simulate a device that idles after connecting &
+		 * getting a location reading for demo purposes
+		 */
+		if (s_connect_and_location_complete) {
+			const int shutdown_time_min = 10;
+			printk("Powering down modem and rebooting in %d minutes",
+			 shutdown_time_min);
+			k_sleep(K_SECONDS(2));
+			lte_lc_power_off();
+			k_sleep(K_MINUTES(shutdown_time_min));
+			sys_reboot(0);
+		}
 #else
 	uint8_t data[CONFIG_DEBUG_MODULE_MEMFAULT_CHUNK_SIZE_MAX];
 	size_t len = sizeof(data);
@@ -290,7 +309,37 @@ static void add_location_metrics(uint8_t satellites, uint32_t search_time,
 		LOG_ERR("Failed updating GnssSatellitesTracked metric, error: %d", err);
 	}
 
-	memfault_metrics_heartbeat_debug_trigger();
+	int bat_voltage = 0;
+	int rv = modem_info_get_batt_voltage(&bat_voltage);
+	if (rv != 0) {
+		LOG_ERR("Failed reading battery voltage, error: %d", rv);
+	} else {
+		LOG_DBG("Battery Voltage: %d", (int)bat_voltage);
+		memfault_metrics_heartbeat_set_unsigned(
+			MEMFAULT_METRICS_KEY(battery_voltage),
+			bat_voltage);
+	}
+
+	int temperature = 0;
+	rv = modem_info_get_temperature(&temperature);
+	if (rv != 0) {
+		LOG_ERR("Failed reading XTEMP, error: %d", rv);
+	} else {
+		LOG_DBG("Temperature: %d", (int)temperature);
+		memfault_metrics_heartbeat_set_unsigned(
+			MEMFAULT_METRICS_KEY(internal_temp),
+			temperature);
+	}
+
+	/*
+	 * We've gotten a location reading. Let's trigger an update
+	 * to Memfault and kick off idling down */
+	if (!s_connect_and_location_complete) {
+	  s_connect_and_location_complete = true;
+	  memfault_metrics_heartbeat_debug_trigger();
+	  send_type = METRICS;
+	  send_memfault_data();
+	}
 }
 
 static void memfault_handle_event(struct debug_msg_data *msg)

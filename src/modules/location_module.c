@@ -328,7 +328,7 @@ static void send_cloud_location_update(const struct location_data_cloud *cloud_l
 	struct location_module_event *evt = new_location_module_event();
 	struct location_module_neighbor_cells *evt_ncells =
 		&evt->data.cloud_location.neighbor_cells;
-
+#if defined(CONFIG_LOCATION_SERVICE_EXTERNAL) && defined(CONFIG_LOCATION_METHOD_CELLULAR)
 	if (cloud_location_info->cell_data != NULL) {
 		BUILD_ASSERT(sizeof(evt_ncells->cell_data) == sizeof(struct lte_lc_cells_info));
 		BUILD_ASSERT(sizeof(evt_ncells->neighbor_cells) >=
@@ -355,6 +355,7 @@ static void send_cloud_location_update(const struct location_data_cloud *cloud_l
 				adjust_rsrq(evt_ncells->neighbor_cells[i].rsrq);
 		}
 	}
+#endif
 
 #if defined(CONFIG_LOCATION_METHOD_WIFI)
 	if (cloud_location_info->wifi_data != NULL) {
